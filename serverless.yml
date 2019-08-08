@@ -51,8 +51,8 @@ resources:
      Properties:
        TopicName: "${self:custom.cronWhoisTopic}"
 
-package:
-  exclude:
-    - README.md
-    - package.json
-    - package-lock.json
+# package:
+#   exclude:
+#     - README.md
+#     - package.json
+#     - package-lock.json
