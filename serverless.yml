@@ -4,7 +4,7 @@ frameworkVersion: ">=1.8.0 <2.0.0"
 
 custom:
   stage: ${opt:stage, "dev"}
-  domains: "munz.com" # Space separated list of domains to check
+  domains: "munz.com dfh23482jki.com" # Space separated list of domains to check
   cronWhoisTopic: "cronWhoisTopic-${self:custom.stage}"
 
 provider:
@@ -51,8 +51,8 @@ resources:
      Properties:
        TopicName: "${self:custom.cronWhoisTopic}"
 
-# package:
-#   exclude:
-#     - README.md
-#     - package.json
-#     - package-lock.json
+package:
+  exclude:
+    - README.md
+    - package.json
+    - package-lock.json
