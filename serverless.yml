@@ -4,7 +4,7 @@ frameworkVersion: ">=1.8.0 <2.0.0"
 
 custom:
   stage: ${opt:stage, "dev"}
-  domains: "munz.com dfh23482jki.com" # Space separated list of domains to check
+  domains: "example.com cocacola.com" # Space separated list of domains to check
   cronWhoisTopic: "cronWhoisTopic-${self:custom.stage}"
 
 provider:
@@ -17,6 +17,8 @@ provider:
   # Environment Variables
   environment:
     DOMAINS: ${self:custom.domains}
+    TOPICS:
+      Ref: cronWhoisTopic
   # IAM policies
   iamRoleStatements:
     # Grant access to publish to cronWhois SNS Topic
@@ -41,7 +43,7 @@ functions:
     layers:
       - {Ref: CommonModulesLambdaLayer}
     events:
-      - schedule: rate(10 minutes)
+      - schedule: rate(10 minutes)  # How frequently to check whois for domains.
 
 # CloudFormation resources
 resources:
