@@ -4,7 +4,7 @@ frameworkVersion: ">=1.8.0 <2.0.0"
 
 custom:
   stage: ${opt:stage, "dev"}
-  domains: "example.com cocacola.com" # Space separated list of domains to check
+  domains: "example.com cocacola.com doesnotexist31415926.com" # Space separated list of domains to check
   cronWhoisTopic: "cronWhoisTopic-${self:custom.stage}"
 
 provider:

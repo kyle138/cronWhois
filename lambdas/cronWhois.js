@@ -19,9 +19,10 @@ async function isRegistered(domain) {
   }
   return await whois(domain)
   .then((res) => {
+    console.log('isRegistered:whois.then:res:',JSON.stringify(res,null,2)); // DEBUG:
     return {
       "domain": domain,
-      "isRegistered": res.hasOwnProperty('domainName')
+      "isRegistered": (res.hasOwnProperty('domainName')||res.hasOwnProperty('domain'))
     };
   })  // end whois.then
   .catch((err) => {
