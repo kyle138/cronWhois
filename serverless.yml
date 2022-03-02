@@ -1,6 +1,6 @@
 service: SLS-cronWhois # NOTE: update this with your service name
 
-frameworkVersion: ">=1.8.0 <2.0.0"
+frameworkVersion: ">=1.8.0 <3.0.0"
 
 custom:
   stage: ${opt:stage, "dev"}
@@ -9,11 +9,12 @@ custom:
 
 provider:
   name: aws
-  runtime: nodejs10.x
+  runtime: nodejs14.x
   memorySize: 128
   timeout: 300
   region: us-east-1
   stage: ${self:custom.stage}
+  lambdaHashingVersion: 20201221
   # Environment Variables
   environment:
     DOMAINS: ${self:custom.domains}
@@ -54,7 +55,8 @@ resources:
        TopicName: "${self:custom.cronWhoisTopic}"
 
 package:
-  exclude:
-    - README.md
-    - package.json
-    - package-lock.json
+  patterns:
+    - '!README.md'
+    - '!LICENSE'
+    - '!package.json'
+    - '!package-lock.json'
