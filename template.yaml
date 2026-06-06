@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   sam-cronWhois
-
   Sample SAM Template for sam-cronWhois
   
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
@@ -22,6 +21,11 @@ Resources:
         - nodejs24.x
     Metadata:
       BuildMethod: nodejs24.x
+  CronWhoisLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${CronWhoisFunction}"
+      RetentionInDays: 90 # 3 months
   CronWhoisFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -60,3 +64,6 @@ Outputs:
   CronWhoisFunctionIamRole:
     Description: "Implicit IAM Role created for CronWhois function"
     Value: !GetAtt CronWhoisFunctionRole.Arn
+  CronWhoisSnsTopicArn:
+    Description: "SNS Topic ARN for alert subscriptions"
+    Value: !Ref CronWhoisSnsId
