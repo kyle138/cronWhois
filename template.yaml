@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-cronWhois
+
+  Sample SAM Template for sam-cronWhois
+  
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 128
+
+Resources:
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: layers/common-layer
+      LayerName: common-layer
+      Description: "cleandns/whois-rdap"
+      CompatibleRuntimes:
+        - nodejs24.x
+    Metadata:
+      BuildMethod: nodejs24.x
+  CronWhoisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/cronWhois.handler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      Layers:
+        - !Ref CommonLayer
+      Policies:
+        # Simplified permissions using SAM policy templates
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt CronWhoisSnsId.TopicName
+      Environment:
+        Variables:
+          DOMAINS: "example.com cocacola.com doesnotexist31415926.com" # Space separated list of domains to check.
+          TOPICS: !Ref CronWhoisSnsId
+      Events:
+        CronSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(10 days)
+            Name: !Sub "${AWS::StackName}Schedule"
+            Description: "Triggers every 10 days"
+            Enabled: true
+  CronWhoisSnsId:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AWS::StackName}Topic"
+
+Outputs:
+  CronWhoisFunction:
+    Description: "CronWhois Lambda Function ARN"
+    Value: !GetAtt CronWhoisFunction.Arn
+  CronWhoisFunctionIamRole:
+    Description: "Implicit IAM Role created for CronWhois function"
+    Value: !GetAtt CronWhoisFunctionRole.Arn
