@@ -1,10 +1,12 @@
-'use strict';
-
 //
-// Add/configure modules
-const AWS = require('aws-sdk');
-const SNS = new AWS.SNS();
-const whois = require('whois-json');
+// cronWhois.mjs
+// Lambda triggered by cron to check if domains are registered.
+//
+
+// Load modules
+import { snsClient } from "../libs/snsClient.mjs";
+import { PublishCommand } from "@aws-sdk/client-sns";
+import { whois } from '@cleandns/whois-rdap';
 
 //
 // isRegistered
@@ -15,14 +17,14 @@ const whois = require('whois-json');
 async function isRegistered(domain) {
   if(!domain) {
     console.log("isRegistered: missing domain");  // DEBUG:
-    throw new Error("isRegistered: missing domain");
+    return Promise.reject(new Error("isRegistered: missing domain"));
   }
   return await whois(domain)
   .then((res) => {
-    console.log('isRegistered:whois.then:res:',JSON.stringify(res,null,2)); // DEBUG:
+    console.log(`isRegistered:whois.then:res:(${domain})::`,JSON.stringify(res,null,2)); // DEBUG:
     return {
       "domain": domain,
-      "isRegistered": (res.hasOwnProperty('domainName')||res.hasOwnProperty('domain'))
+      "isRegistered": (res.hasOwnProperty('found') && res?.found === true)
     };
   })  // end whois.then
   .catch((err) => {
@@ -30,7 +32,6 @@ async function isRegistered(domain) {
     return(err);
   }); // End whois.catch
 } // End isRegistered
-
 
 //
 // publishToSns
@@ -56,7 +57,7 @@ async function publishToSns(params) {
           Subject: 'CronWhois: Domains are unregistered!',
           TopicArn: topic
         };
-        await SNS.publish(pubParams).promise()
+        await snsClient.send(new PublishCommand(pubParams))
         .then(response => {
           console.log("publishToSns:SNS.publish response: "+JSON.stringify(response,null,2)); // DEBUG:
           return;
@@ -75,8 +76,11 @@ async function publishToSns(params) {
 } // end publishToSns
 
 
-module.exports.handler = async event => {
-  console.log("Received event:",JSON.stringify(event,null,2));  // DEBUG:
+// ************
+// MAIN HANDLER
+// ************
+export const handler = async (event, context) => {
+  console.log(`Received event:`,JSON.stringify(event,null,2)); // DEBUG:
 
   // Check if DOMAIN has been set as an environment variable. (REQUIRED)
   if(!process.env.DOMAINS) {
@@ -89,7 +93,7 @@ module.exports.handler = async event => {
     throw new Error("process.env.TOPICS missing.");
   }
 
-  // DOMAINS is a space-separated list of domains, check them all
+    // DOMAINS is a space-separated list of domains, check them all
   return await Promise.all(
     process.env.DOMAINS.split(' ').map( async domain => {
       return await isRegistered(domain);
@@ -116,4 +120,6 @@ module.exports.handler = async event => {
     console.log('Promise.all.catch:',err);  // DEBUG:
     throw new Error(err);
   }); // end Promise.all.catch
+
 };
+  
