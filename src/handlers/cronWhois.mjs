@@ -14,23 +14,31 @@ import { whois } from '@cleandns/whois-rdap';
 // Returns true if registered, otherwise false
 // Arguments:
 // domain - (string) Domain to check, must be of domain.tld format
+// @returns - (promise) Status object
 async function isRegistered(domain) {
   if(!domain) {
     console.log("isRegistered: missing domain");  // DEBUG:
-    return Promise.reject(new Error("isRegistered: missing domain"));
+    throw new Error("isRegistered: missing domain");
   }
-  return await whois(domain)
-  .then((res) => {
-    console.log(`isRegistered:whois.then:res:(${domain})::`,JSON.stringify(res,null,2)); // DEBUG:
+
+  try {
+    const res = await whois(domain);
+    console.log(`isRegistered:whois:res:(${domain})::`,JSON.stringify(res,null,2)); // DEBUG:
+
     return {
-      "domain": domain,
-      "isRegistered": (res.hasOwnProperty('found') && res?.found === true)
+      domain: domain,
+      isRegistered: (res.hasOwnProperty('found') && res?.found === true),
+      error: false
     };
-  })  // end whois.then
-  .catch((err) => {
-    console.log('isRegistered:whois Error:',err);
-    return(err);
-  }); // End whois.catch
+  } catch (err) {
+    console.error(`isRegistered:whois Error for ${domain}:`,err);
+    return {
+      domain: domain,
+      isRegistered: null, 
+      error: true,
+      errorMessage: err.message
+    };
+  } // End try/catch
 } // End isRegistered
 
 //
@@ -39,40 +47,36 @@ async function isRegistered(domain) {
 // Parameters:
 // topics - (array) list of SNS Topic ARN to publish to
 // data - (object) the data to publish
+// Returns: Promise
 async function publishToSns(params) {
   console.log("publishToSns:params:",JSON.stringify(params,null,2));  // DEBUG:
-  if(!params.data || !params.topics) {
-    console.log("publishToSns:missing parameters.");  // DEBUG:
-    return Promise.reject(new Error("publishToSns missing parameters."));
+  if(!params.topics?.length || !params.data?.length) {
+    console.log(`publishToSns: Missing or empty parameters.`);
+    throw new Error("publishToSns: Missing or empty params");
   }
-  if(params.data.length < 1 || params.topics.length < 1) {
-    console.log("publishToSns:empty objects."); // DEBUG:
-    return Promise.reject(new Error("publishToSns:empty objects."));
-  }
-  return await Promise.all(
-    params.topics.map(
-      async topic => {
-        const pubParams = {
-          Message: JSON.stringify(params.data),
-          Subject: 'CronWhois: Domains are unregistered!',
-          TopicArn: topic
-        };
-        await snsClient.send(new PublishCommand(pubParams))
-        .then(response => {
-          console.log("publishToSns:SNS.publish response: "+JSON.stringify(response,null,2)); // DEBUG:
-          return;
-        }); // End SNS.publish.promise.then
-      } // End topic
-    ) // End map
-  ) // End Promise.all
-  .then(() => {
-    console.log("publishToSns:Promise.all.then:All messages sent.");  // DEBUG:
-    return Promise.resolve;
-  })  // End Promise.all.then...
-  .catch((err) => {
-    console.log("publishToSns:Promise.all.catch:",JSON.stringify(err,null,2));  // DEBUG:
-    return Promise.reject(err);
-  }); // End Promise.all.catch
+
+  const pubParams = {
+    Message: JSON.stringify({
+      alert: 'CronWhois: Domains alerts:',
+      domains: params.data
+    },null,2),
+    Subject: 'CronWhois: Domains are unregistered!'
+  };  // end pubParams
+
+  // Map all topics
+  const pubPromises = params.topics.map(topic => {
+    return snsClient.send(new PublishCommand({...pubParams, TopicArn: topic}));
+  });
+
+  try {
+    await Promise.all(pubPromises);
+    console.log(`publishToSns: All SNS notifications delivered.`);
+    return;
+  } catch (err) {
+    console.error("publishToSns: Error:: Failed to send one or more messages: ",err);
+    throw err;
+  } // end try/catch
+
 } // end publishToSns
 
 
@@ -93,33 +97,30 @@ export const handler = async (event, context) => {
     throw new Error("process.env.TOPICS missing.");
   }
 
+  try {
     // DOMAINS is a space-separated list of domains, check them all
-  return await Promise.all(
-    process.env.DOMAINS.split(' ').map( async domain => {
-      return await isRegistered(domain);
-    })  // End map
-  ) // end Promise.all
-  .then(async (results) => {
-    console.log('Promise.all.then:whois results;',JSON.stringify(results,null,2));  // DEBUG:
-    await Promise.all(
-      results.map( async (resp) => {
-        if(resp.isRegistered === false) {
-          await publishToSns({
-            data: resp,
-            topics: process.env.TOPICS.split(' ')
-          }); // End publishToSns
-        } // End if registered
-      })  // End map
-    ); // end Promise.all.Promise.all
-  })  // End Promise.all.then
-  .then(() => {
-    console.log('Promise.all.then.then:All domains checked.'); // DEBUG:
+    const results = await Promise.all(process.env.DOMAINS.split(/\s+/).map(domain => isRegistered(domain)));
+    console.debug(`Whois raw results:: `,JSON.stringify(results,null,2)); // DEBUG
+
+    // Filter down to unregistered or failed lookups
+    const filtered = results.filter(item => item.isRegistered === false || item.error === true);
+
+    // Publish any alerts
+    if (filtered.length > 0) {
+      await publishToSns({
+        topics: process.env.TOPICS.split(' '),
+        data: filtered
+      });
+    } else {
+      console.log(`All domains checked.`);
+    } // End if/else filtered
+
     return { message: 'All domains checked.'};
-  })  // end Promise.all.then.then
-  .catch((err) => {
-    console.log('Promise.all.catch:',err);  // DEBUG:
-    throw new Error(err);
-  }); // end Promise.all.catch
+
+  } catch (err) {
+    console.error('Handler failure: ', err);
+    throw err;
+  } // End try/catch
 
 };
   
